@@ -17,6 +17,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Import model configuration
 from models_config import CLAUDE_MODELS, SystemPrompts
 
+# Import project analyzer
+from agents.project_analyzer import ProjectAnalyzer
+
 # Import Claude CLI Agent or fallback to Anthropic SDK
 try:
     from claude_cli_agent import ClaudeAgent
@@ -87,18 +90,37 @@ class IssueGenerator:
         # Get repository context
         print("📖 Analyzing repository for potential issues...")
 
+        # Get basic context
         try:
-            readme = self.repo.get_readme().decoded_content.decode("utf-8")[:1000]
+            readme = self.repo.get_readme().decoded_content.decode("utf-8")[:2000]
         except:
             readme = "No README found"
+
+        # Get PROJECT_BRIEF.md if it exists
+        project_brief = ""
+        try:
+            brief_content = self.repo.get_contents("PROJECT_BRIEF.md")
+            project_brief = brief_content.decoded_content.decode("utf-8")[:2000]
+            print("✅ Found PROJECT_BRIEF.md")
+        except:
+            print("ℹ️  No PROJECT_BRIEF.md found")
 
         recent_commits = list(self.repo.get_commits()[:5])
         commit_messages = "\n".join(
             [f"- {c.commit.message.split(chr(10))[0]}" for c in recent_commits]
         )
 
-        # Build prompt for Claude
-        prompt = self._build_prompt(needed, readme, commit_messages, open_issues)
+        # Enhanced: Perform comprehensive project analysis
+        analyzer = ProjectAnalyzer(self.repo)
+        analysis = analyzer.analyze_project()
+        context_summary = analyzer.generate_context_summary(analysis)
+
+        print("✅ Project analysis complete")
+
+        # Build prompt for Claude with enhanced context
+        prompt = self._build_prompt(
+            needed, readme, project_brief, commit_messages, open_issues, context_summary
+        )
 
         print(f"📝 Prompt length: {len(prompt)} chars")
 
@@ -113,24 +135,51 @@ class IssueGenerator:
         self._parse_and_create_issues(response_text, needed)
 
     def _build_prompt(
-        self, needed: int, readme: str, commit_messages: str, open_issues: List
+        self,
+        needed: int,
+        readme: str,
+        project_brief: str,
+        commit_messages: str,
+        open_issues: List,
+        context_summary: str,
     ) -> str:
-        """Build the prompt for Claude"""
-        return f"""Analyze this GitHub repository and suggest {needed} new issue(s).
+        """Build the prompt for Claude with enhanced context"""
+        prompt = f"""Analyze this GitHub repository and suggest {needed} new issue(s).
 
 Repository: {self.repo.full_name}
 
 README excerpt:
 {readme}
+"""
 
+        # Add PROJECT_BRIEF if available
+        if project_brief:
+            prompt += f"""
+PROJECT_BRIEF excerpt:
+{project_brief}
+"""
+
+        prompt += f"""
 Recent commits:
 {commit_messages}
 
 Current open issues:
 {chr(10).join([f"- #{i.number}: {i.title}" for i in open_issues[:10]])}
 
-Generate {needed} realistic, actionable issue(s). 
-Read the whole project and find the most important thing for it - from new features, UI, apps, marketing or sales tools to bug fixes, tests, devops etc. 
+PROJECT STRUCTURE & ANALYSIS:
+{context_summary}
+
+Based on the comprehensive project analysis above, generate {needed} realistic, actionable issue(s).
+
+Consider:
+- Missing components in the current tech stack
+- Areas lacking documentation or tests
+- CI/CD improvements needed
+- Code quality and architectural patterns
+- Performance optimizations
+- Security enhancements
+- User experience improvements
+- Missing features based on the project's goals
 
 Respond with ONLY a JSON object in this exact format:
 {{
@@ -143,9 +192,11 @@ Respond with ONLY a JSON object in this exact format:
   ]
 }}
 
-Use appropriate labels: feature, bug, documentation, refactor, test, performance, security, ci/cd
+Use appropriate labels: feature, bug, documentation, refactor, test, performance, security, ci/cd, enhancement
 
 Keep descriptions brief and output ONLY the JSON, nothing else."""
+
+        return prompt
 
     def _call_claude(self, prompt: str) -> Optional[str]:
         """Call Claude AI (CLI or API)"""
