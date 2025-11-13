@@ -6,6 +6,7 @@ LLM-based role workflow for GitHub issue resolution using Claude AI
 
 import sys
 import json
+import os
 from pathlib import Path
 from typing import Optional, Dict, Any
 from datetime import datetime
@@ -17,6 +18,7 @@ import git
 from config import AgentConfig
 from utils.logger import setup_logger
 from utils.project_brief_validator import validate_project_brief
+from utils.retry_utils import retry_anthropic_api_call, retry_github_api_call
 from prompt_loader import PromptLoader
 from models_config import CLAUDE_MODELS
 
@@ -46,6 +48,26 @@ class AgenticWorkflow:
         self.logger.info(f"Mode: {self.config.agent_mode}")
         self.logger.info(f"Prompt template: {self.config.prompt_template}")
 
+    @retry_github_api_call(max_retries=3, base_delay=2.0, verbose=False)
+    def _get_repo_with_retry(self, repo_path: str):
+        """Get repository with retry logic"""
+        return self.gh.get_repo(repo_path)
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0, verbose=False)
+    def _get_issues_with_retry(self, repo, state: str):
+        """Get issues with retry logic"""
+        return repo.get_issues(state=state)
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0, verbose=False)
+    def _get_issue_with_retry(self, repo, issue_number: int):
+        """Get specific issue with retry logic"""
+        return repo.get_issue(issue_number)
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0, verbose=False)
+    def _create_pull_with_retry(self, repo, title: str, body: str, head: str, base: str):
+        """Create pull request with retry logic"""
+        return repo.create_pull(title=title, body=body, head=head, base=base)
+
     def _parse_repo_info(self) -> tuple[str, str]:
         """Extract owner and repo name from URL"""
         # Remove protocol and .git suffix
@@ -70,9 +92,9 @@ class AgenticWorkflow:
         self.logger.info(f"Repository cloned to {self.repo_path}")
 
     def _get_issue(self, owner: str, repo_name: str) -> Optional[Dict[str, Any]]:
-        """Get issue details from GitHub"""
+        """Get issue details from GitHub with retry logic"""
         try:
-            repo = self.gh.get_repo(f"{owner}/{repo_name}")
+            repo = self._get_repo_with_retry(f"{owner}/{repo_name}")
 
             # Determine which issue to work on
             if self.config.issue_number:
@@ -80,7 +102,7 @@ class AgenticWorkflow:
                 self.logger.info(f"Using specified issue #{issue_num}")
             else:
                 # Auto-select first open issue
-                issues = repo.get_issues(state="open")
+                issues = self._get_issues_with_retry(repo, state="open")
                 first_issue = next(iter(issues), None)
 
                 if not first_issue:
@@ -90,7 +112,7 @@ class AgenticWorkflow:
                 issue_num = first_issue.number
                 self.logger.info(f"Auto-selected issue #{issue_num}")
 
-            issue = repo.get_issue(issue_num)
+            issue = self._get_issue_with_retry(repo, issue_num)
 
             return {
                 "number": issue.number,
@@ -197,21 +219,21 @@ class AgenticWorkflow:
             template = self.prompt_loader.load_template("default")
             prompt = self.prompt_loader.format_prompt(template, context)
 
-        try:
-            message = self.anthropic.messages.create(
-                model=CLAUDE_MODELS.WORKFLOW,
-                max_tokens=CLAUDE_MODELS.WORKFLOW_MAX_TOKENS,
-                messages=[{"role": "user", "content": prompt}],
-            )
+        return self._call_anthropic_with_retry(prompt)
 
-            response_text = message.content[0].text
-            self.logger.info("Claude response received")
+    @retry_anthropic_api_call(max_retries=3, base_delay=2.0, verbose=False)
+    def _call_anthropic_with_retry(self, prompt: str) -> str:
+        """Call Anthropic API with retry logic"""
+        message = self.anthropic.messages.create(
+            model=CLAUDE_MODELS.WORKFLOW,
+            max_tokens=CLAUDE_MODELS.WORKFLOW_MAX_TOKENS,
+            messages=[{"role": "user", "content": prompt}],
+        )
 
-            return response_text
+        response_text = message.content[0].text
+        self.logger.info("Claude response received")
 
-        except Exception as e:
-            self.logger.error(f"Error calling Claude API: {e}")
-            raise
+        return response_text
 
     def _apply_fix(self, fix_response: str) -> bool:
         """Apply the fix suggested by Claude"""
@@ -293,11 +315,11 @@ Closes #{issue['number']}
     def _create_pull_request(
         self, owner: str, repo_name: str, issue: Dict[str, Any], branch_name: str
     ):
-        """Create a pull request for the fix"""
+        """Create a pull request for the fix with retry logic"""
         self.logger.info("Creating pull request...")
 
         try:
-            repo = self.gh.get_repo(f"{owner}/{repo_name}")
+            repo = self._get_repo_with_retry(f"{owner}/{repo_name}")
 
             pr_title = f"Fix: Resolve issue #{issue['number']} - {issue['title']}"
 
@@ -320,8 +342,8 @@ Closes #{issue['number']}
 *Generated by Claude Agent - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*
 """
 
-            pr = repo.create_pull(
-                title=pr_title, body=pr_body, head=branch_name, base="main"
+            pr = self._create_pull_with_retry(
+                repo, title=pr_title, body=pr_body, head=branch_name, base="main"
             )
 
             self.logger.info(f"Pull request created: {pr.html_url}")

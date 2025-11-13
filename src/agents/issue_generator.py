@@ -17,6 +17,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Import model configuration
 from models_config import CLAUDE_MODELS, SystemPrompts
 
+# Import retry utilities
+from utils.retry_utils import retry_anthropic_api_call, retry_github_api_call
+
 # Import Claude CLI Agent or fallback to Anthropic SDK
 try:
     from claude_cli_agent import ClaudeAgent
@@ -49,6 +52,26 @@ class IssueGenerator:
         self.anthropic_api_key = anthropic_api_key
         self.min_issues = min_issues
 
+    @retry_github_api_call(max_retries=3, base_delay=2.0)
+    def _get_open_issues_with_retry(self):
+        """Get open issues with retry logic"""
+        return list(self.repo.get_issues(state="open"))
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0)
+    def _get_readme_with_retry(self):
+        """Get README with retry logic"""
+        return self.repo.get_readme().decoded_content.decode("utf-8")[:1000]
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0)
+    def _get_commits_with_retry(self):
+        """Get commits with retry logic"""
+        return list(self.repo.get_commits()[:5])
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0)
+    def _create_issue_with_retry(self, title: str, body: str, labels: List[str]):
+        """Create issue with retry logic"""
+        return self.repo.create_issue(title=title, body=body, labels=labels)
+
     def check_and_generate(self) -> bool:
         """
         Check issue count and generate if needed
@@ -58,8 +81,8 @@ class IssueGenerator:
         """
         print(f"🔍 Checking issue count (minimum: {self.min_issues})")
 
-        # Count open issues (excluding pull requests)
-        open_issues = list(self.repo.get_issues(state="open"))
+        # Count open issues (excluding pull requests) with retry
+        open_issues = self._get_open_issues_with_retry()
         open_issues = [i for i in open_issues if not i.pull_request]
         issue_count = len(open_issues)
 
@@ -88,11 +111,11 @@ class IssueGenerator:
         print("📖 Analyzing repository for potential issues...")
 
         try:
-            readme = self.repo.get_readme().decoded_content.decode("utf-8")[:1000]
+            readme = self._get_readme_with_retry()
         except:
             readme = "No README found"
 
-        recent_commits = list(self.repo.get_commits()[:5])
+        recent_commits = self._get_commits_with_retry()
         commit_messages = "\n".join(
             [f"- {c.commit.message.split(chr(10))[0]}" for c in recent_commits]
         )
@@ -148,33 +171,14 @@ Use appropriate labels: feature, bug, documentation, refactor, test, performance
 Keep descriptions brief and output ONLY the JSON, nothing else."""
 
     def _call_claude(self, prompt: str) -> Optional[str]:
-        """Call Claude AI (CLI or API)"""
+        """Call Claude AI (CLI or API) with retry logic"""
         try:
             if USE_CLAUDE_CLI:
                 print("🤖 Using Claude CLI...")
-                agent = ClaudeAgent(output_format="text", verbose=True)
-
-                result = agent.query(
-                    prompt, system_prompt=SystemPrompts.ISSUE_GENERATOR
-                )
-
-                # Extract response
-                if isinstance(result, dict) and "result" in result:
-                    return result["result"]
-                else:
-                    return str(result)
+                return self._call_claude_cli(prompt)
             else:
                 print("🤖 Using Anthropic API...")
-                client = Anthropic(api_key=self.anthropic_api_key)
-
-                message = client.messages.create(
-                    model=CLAUDE_MODELS.ISSUE_GENERATION,
-                    max_tokens=CLAUDE_MODELS.DEFAULT_MAX_TOKENS,
-                    system=SystemPrompts.ISSUE_GENERATOR,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-
-                return message.content[0].text
+                return self._call_anthropic_api(prompt)
 
         except Exception as e:
             print(f"❌ Error calling Claude: {e}")
@@ -182,6 +186,31 @@ Keep descriptions brief and output ONLY the JSON, nothing else."""
 
             traceback.print_exc()
             return None
+
+    def _call_claude_cli(self, prompt: str) -> str:
+        """Call Claude CLI (retries handled by subprocess)"""
+        agent = ClaudeAgent(output_format="text", verbose=True)
+        result = agent.query(prompt, system_prompt=SystemPrompts.ISSUE_GENERATOR)
+
+        # Extract response
+        if isinstance(result, dict) and "result" in result:
+            return result["result"]
+        else:
+            return str(result)
+
+    @retry_anthropic_api_call(max_retries=3, base_delay=2.0)
+    def _call_anthropic_api(self, prompt: str) -> str:
+        """Call Anthropic API with retry logic"""
+        client = Anthropic(api_key=self.anthropic_api_key)
+
+        message = client.messages.create(
+            model=CLAUDE_MODELS.ISSUE_GENERATION,
+            max_tokens=CLAUDE_MODELS.DEFAULT_MAX_TOKENS,
+            system=SystemPrompts.ISSUE_GENERATOR,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        return message.content[0].text
 
     def _parse_and_create_issues(self, response_text: str, needed: int) -> None:
         """Parse Claude response and create GitHub issues"""
@@ -228,7 +257,7 @@ Keep descriptions brief and output ONLY the JSON, nothing else."""
 
                 full_body = f"{body}\n\n---\n*Generated by Issue Generator Agent*"
 
-                new_issue = self.repo.create_issue(
+                new_issue = self._create_issue_with_retry(
                     title=title, body=full_body, labels=labels
                 )
 

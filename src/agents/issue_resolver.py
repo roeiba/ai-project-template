@@ -30,6 +30,9 @@ except ImportError:
 # Import validator
 from utils.project_brief_validator import validate_project_brief
 
+# Import retry utilities
+from utils.retry_utils import retry_github_api_call
+
 
 class IssueResolver:
     """Resolves GitHub issues using AI and creates pull requests"""
@@ -69,6 +72,41 @@ class IssueResolver:
         print(
             f"   - Supports: features, bugs, documentation, refactoring, tests, performance, security, CI/CD"
         )
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0)
+    def _get_issue_with_retry(self, issue_number: int):
+        """Get issue with retry logic"""
+        return self.repo.get_issue(issue_number)
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0)
+    def _get_issues_with_retry(self, state: str, sort: str, direction: str):
+        """Get issues with retry logic"""
+        return self.repo.get_issues(state=state, sort=sort, direction=direction)
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0)
+    def _get_readme_with_retry(self):
+        """Get README with retry logic"""
+        return self.repo.get_readme().decoded_content.decode("utf-8")[:2000]
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0)
+    def _create_comment_with_retry(self, issue, comment: str):
+        """Create comment with retry logic"""
+        return issue.create_comment(comment)
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0)
+    def _add_label_with_retry(self, issue, label: str):
+        """Add label with retry logic"""
+        return issue.add_to_labels(label)
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0)
+    def _remove_label_with_retry(self, issue, label: str):
+        """Remove label with retry logic"""
+        return issue.remove_from_labels(label)
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0)
+    def _create_pull_request_with_retry(self, title: str, body: str, head: str, base: str):
+        """Create pull request with retry logic"""
+        return self.repo.create_pull(title=title, body=body, head=head, base=base)
 
     def resolve_issue(self, specific_issue: Optional[int] = None) -> bool:
         """
@@ -114,17 +152,18 @@ class IssueResolver:
 
         if not is_valid:
             print("❌ PROJECT_BRIEF.md validation failed - aborting to save API calls")
-            selected_issue.create_comment(
+            self._create_comment_with_retry(
+                selected_issue,
                 f"❌ **Pre-flight check failed**\n\n{validation_msg}\n\n"
                 "Please fix PROJECT_BRIEF.md validation errors before I can proceed.\n\n"
                 "---\n*Issue Resolver Agent*"
             )
-            selected_issue.remove_from_labels("in-progress")
+            self._remove_label_with_retry(selected_issue, "in-progress")
             return False
 
         # Add validation success to issue comment if there was a validation
         if validation_msg:
-            selected_issue.create_comment(validation_msg)
+            self._create_comment_with_retry(selected_issue, validation_msg)
 
         # Create branch
         branch_name = f"fix/issue-{selected_issue.number}-{int(time.time())}"
@@ -136,8 +175,8 @@ class IssueResolver:
 
         if summary is None:
             if issue_claimed:
-                selected_issue.create_comment("❌ Failed to generate fix")
-                selected_issue.remove_from_labels("in-progress")
+                self._create_comment_with_retry(selected_issue, "❌ Failed to generate fix")
+                self._remove_label_with_retry(selected_issue, "in-progress")
             return False
 
         # Check if files were modified and create PR
@@ -152,7 +191,7 @@ class IssueResolver:
         if specific_issue:
             print(f"🎯 Mode: Specific issue requested")
             print(f"   Issue number: #{specific_issue}")
-            issue = self.repo.get_issue(int(specific_issue))
+            issue = self._get_issue_with_retry(int(specific_issue))
             print(f"   ✅ Found issue: {issue.title}")
             return issue
 
@@ -162,8 +201,8 @@ class IssueResolver:
         print(f"   - Must have labels: {self.labels_to_handle}")
         print(f"   - Must NOT have labels: {self.labels_to_skip}")
         print(f"   - Not already claimed by agent")
-        
-        open_issues = self.repo.get_issues(
+
+        open_issues = self._get_issues_with_retry(
             state="open", sort="created", direction="asc"
         )
 
@@ -222,8 +261,8 @@ I'm working on this issue now.
 ---
 *Automated by GitHub Actions*"""
 
-        issue.create_comment(claim_message)
-        issue.add_to_labels("in-progress")
+        self._create_comment_with_retry(issue, claim_message)
+        self._add_label_with_retry(issue, "in-progress")
         print("   ✅ Added 'in-progress' label")
         print("   ✅ Posted claim comment to issue")
         return True
@@ -325,8 +364,8 @@ I'm working on this issue now.
         except Exception as e:
             print(f"   ❌ Failed to create branch: {e}")
             if issue_claimed:
-                issue.create_comment(f"❌ Failed to create branch: {e}")
-                issue.remove_from_labels("in-progress")
+                self._create_comment_with_retry(issue, f"❌ Failed to create branch: {e}")
+                self._remove_label_with_retry(issue, "in-progress")
             return False
 
     def _generate_fix(
@@ -339,7 +378,7 @@ I'm working on this issue now.
         
         # Get context
         try:
-            readme = self.repo.get_readme().decoded_content.decode("utf-8")[:2000]
+            readme = self._get_readme_with_retry()
             print("   ✅ Loaded README context")
         except:
             readme = "No README found"
@@ -422,10 +461,11 @@ You have access to Read and Write tools to modify files in the current directory
         
         if not self.git_repo.is_dirty(untracked_files=True):
             print("   ⚠️  No files were modified")
-            issue.create_comment(
+            self._create_comment_with_retry(
+                issue,
                 "⚠️ No changes were made. The issue may need manual review."
             )
-            issue.remove_from_labels("in-progress")
+            self._remove_label_with_retry(issue, "in-progress")
             return False
 
         # Get list of changed files
@@ -471,7 +511,7 @@ Closes #{issue.number}
 ---
 *Generated by Issue Resolver Agent using Claude Agent SDK*"""
 
-        pr = self.repo.create_pull(
+        pr = self._create_pull_request_with_retry(
             title=pr_title, body=pr_body, head=branch_name, base="main"
         )
 
@@ -480,7 +520,8 @@ Closes #{issue.number}
 
         # Update issue
         print("\n   💬 Updating issue with results...")
-        issue.create_comment(
+        self._create_comment_with_retry(
+            issue,
             f"""✅ **Solution Ready**
 
 Pull Request: #{pr.number}
@@ -492,7 +533,7 @@ Pull Request: #{pr.number}
 *Completed at: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}*"""
         )
 
-        issue.remove_from_labels("in-progress")
+        self._remove_label_with_retry(issue, "in-progress")
         print("   ✅ Issue updated and 'in-progress' label removed")
 
         print("\n" + "="*80)

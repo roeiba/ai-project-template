@@ -19,6 +19,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Import model configuration
 from models_config import CLAUDE_MODELS, SystemPrompts
 
+# Import retry utilities
+from utils.retry_utils import retry_anthropic_api_call, retry_github_api_call
+
 # Import Claude CLI Agent or fallback to Anthropic SDK
 try:
     from claude_cli_agent import ClaudeAgent
@@ -65,6 +68,26 @@ class QAAgent:
             f"📊 Will review: {self.max_issues} issues, {self.max_prs} PRs, {self.max_commits} commits"
         )
 
+    @retry_github_api_call(max_retries=3, base_delay=2.0)
+    def _get_issues_with_retry(self, state: str, sort: str, direction: str):
+        """Get issues with retry logic"""
+        return list(self.repo.get_issues(state=state, sort=sort, direction=direction))
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0)
+    def _get_pulls_with_retry(self, state: str, sort: str, direction: str):
+        """Get pull requests with retry logic"""
+        return list(self.repo.get_pulls(state=state, sort=sort, direction=direction))
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0)
+    def _get_commits_with_retry(self):
+        """Get commits with retry logic"""
+        return list(self.repo.get_commits())
+
+    @retry_github_api_call(max_retries=3, base_delay=2.0)
+    def _create_issue_with_retry(self, title: str, body: str, labels: List[str]):
+        """Create issue with retry logic"""
+        return self.repo.create_issue(title=title, body=body, labels=labels)
+
     def run_qa_check(self) -> bool:
         """
         Run QA check on repository
@@ -107,8 +130,8 @@ class QAAgent:
 
         # Get recent issues
         print(f"📋 Reviewing {self.max_issues} recent issues...")
-        issues = list(
-            self.repo.get_issues(state="all", sort="updated", direction="desc")
+        issues = self._get_issues_with_retry(
+            state="all", sort="updated", direction="desc"
         )[: self.max_issues]
         for issue in issues:
             if issue.pull_request:
@@ -127,9 +150,9 @@ class QAAgent:
 
         # Get recent pull requests
         print(f"🔀 Reviewing {self.max_prs} recent pull requests...")
-        prs = list(self.repo.get_pulls(state="all", sort="updated", direction="desc"))[
-            : self.max_prs
-        ]
+        prs = self._get_pulls_with_retry(
+            state="all", sort="updated", direction="desc"
+        )[: self.max_prs]
         for pr in prs:
             context["pull_requests"].append(
                 {
@@ -147,7 +170,7 @@ class QAAgent:
 
         # Get recent commits
         print(f"📝 Reviewing {self.max_commits} recent commits...")
-        commits = list(self.repo.get_commits())[: self.max_commits]
+        commits = self._get_commits_with_retry()[: self.max_commits]
         for commit in commits:
             context["commits"].append(
                 {
@@ -248,32 +271,17 @@ Output ONLY the JSON, nothing else.
         return prompt
 
     def _run_qa_analysis(self, context: Dict) -> Optional[str]:
-        """Run QA analysis using Claude AI"""
+        """Run QA analysis using Claude AI with retry logic"""
         prompt = self._build_qa_prompt(context)
         print(f"📝 Prompt length: {len(prompt)} chars")
 
         try:
             if USE_CLAUDE_CLI:
                 print("🤖 Using Claude CLI...")
-                agent = ClaudeAgent(output_format="text", verbose=False)
-                result = agent.query(prompt, system_prompt=SystemPrompts.QA_ENGINEER)
-                if isinstance(result, dict) and "result" in result:
-                    response_text = result["result"]
-                else:
-                    response_text = str(result)
+                return self._call_claude_cli(prompt)
             else:
                 print("🤖 Using Anthropic API...")
-                client = Anthropic(api_key=self.anthropic_api_key)
-                message = client.messages.create(
-                    model=CLAUDE_MODELS.QA_ANALYSIS,
-                    max_tokens=CLAUDE_MODELS.QA_MAX_TOKENS,
-                    system=SystemPrompts.QA_ENGINEER,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                response_text = message.content[0].text
-
-            print(f"✅ Received response ({len(response_text)} chars)")
-            return response_text
+                return self._call_anthropic_api(prompt)
 
         except Exception as e:
             print(f"❌ Error calling Claude: {e}")
@@ -281,6 +289,31 @@ Output ONLY the JSON, nothing else.
 
             traceback.print_exc()
             return None
+
+    def _call_claude_cli(self, prompt: str) -> str:
+        """Call Claude CLI (retries handled by subprocess)"""
+        agent = ClaudeAgent(output_format="text", verbose=False)
+        result = agent.query(prompt, system_prompt=SystemPrompts.QA_ENGINEER)
+        if isinstance(result, dict) and "result" in result:
+            response_text = result["result"]
+        else:
+            response_text = str(result)
+        print(f"✅ Received response ({len(response_text)} chars)")
+        return response_text
+
+    @retry_anthropic_api_call(max_retries=3, base_delay=2.0)
+    def _call_anthropic_api(self, prompt: str) -> str:
+        """Call Anthropic API with retry logic"""
+        client = Anthropic(api_key=self.anthropic_api_key)
+        message = client.messages.create(
+            model=CLAUDE_MODELS.QA_ANALYSIS,
+            max_tokens=CLAUDE_MODELS.QA_MAX_TOKENS,
+            system=SystemPrompts.QA_ENGINEER,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        response_text = message.content[0].text
+        print(f"✅ Received response ({len(response_text)} chars)")
+        return response_text
 
     def _parse_and_act_on_results(self, response_text: str) -> bool:
         """Parse QA results and create issues if needed"""
@@ -426,7 +459,7 @@ Output ONLY the JSON, nothing else.
         # Create the issue
         try:
             issue_title = f"QA Report: {summary[:60]}"
-            new_issue = self.repo.create_issue(
+            new_issue = self._create_issue_with_retry(
                 title=issue_title, body=body, labels=labels
             )
             print(f"✅ Created QA issue #{new_issue.number}: {issue_title}")
