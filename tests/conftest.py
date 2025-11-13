@@ -55,3 +55,6 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "requires_api_key: mark test as requiring API key"
     )
+    config.addinivalue_line(
+        "markers", "e2e: mark test as end-to-end test (complete workflows)"
+    )

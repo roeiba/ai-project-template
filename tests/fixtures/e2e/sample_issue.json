@@ -1,0 +1,12 @@
+{
+  "number": 123,
+  "title": "Add comprehensive logging system",
+  "body": "## Description\n\nImplement a comprehensive logging system for the application.\n\n## Requirements\n\n1. **Log Levels**: Support DEBUG, INFO, WARNING, ERROR, CRITICAL\n2. **Output Formats**: Support JSON and text formats\n3. **Destinations**: Console and file output\n4. **Rotation**: Automatic log rotation based on size\n5. **Context**: Include timestamp, module, and function name\n\n## Acceptance Criteria\n\n- [ ] Logger can be configured via environment variables\n- [ ] Logs include all required context information\n- [ ] Log rotation works correctly\n- [ ] Performance impact is minimal (< 5ms per log entry)\n- [ ] Tests cover all log levels and formats\n\n## Technical Notes\n\n- Use Python's built-in logging module\n- Consider using structured logging for JSON format\n- Ensure thread-safety for concurrent logging\n",
+  "labels": ["enhancement", "good first issue"],
+  "state": "open",
+  "url": "https://github.com/test-org/test-repo/issues/123",
+  "created_at": "2025-01-15T10:00:00Z",
+  "updated_at": "2025-01-15T10:00:00Z",
+  "assignees": [],
+  "milestone": null
+}
