@@ -94,6 +94,20 @@ The template is **technology-agnostic**. AI can generate projects using:
 
 Just specify your preferences in `PROJECT_BRIEF.md`.
 
+## 🎬 Live Examples
+
+See the template in action! Check out our complete demo projects:
+
+- **[TaskFlow API](examples/todo-api-demo/)** - Full-featured task management REST API
+  - Complete TypeScript/Node.js backend
+  - PostgreSQL + Redis stack
+  - JWT authentication
+  - Docker deployment
+  - 85%+ test coverage
+  - Generated in ~30 minutes
+
+[**View All Examples →**](examples/)
+
 ## 🤖 AI Agents
 
 This template includes ready-to-use AI agents for automation:
@@ -120,6 +134,7 @@ This template includes ready-to-use AI agents for automation:
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Quick start guide
 - **[PROJECT_BRIEF.md](PROJECT_BRIEF.md)** - Template to fill out
+- **[examples/](examples/)** - Complete demo projects showing AI generation in action
 - **[.agents/](.agents/)** - AI guidelines and maintenance docs
 - **[src/gemini-agent/](src/gemini-agent/)** - Gemini CLI agent setup and examples
 
