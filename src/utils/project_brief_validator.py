@@ -65,6 +65,7 @@ class ProjectBriefValidator:
     """Validator for PROJECT_BRIEF.md format and content"""
 
     # Required sections in PROJECT_BRIEF.md
+    # Note: Section names can have variations (e.g., "Core Features" or "Core Requirements")
     REQUIRED_SECTIONS = [
         "Project Overview",
         "Core Requirements",
@@ -159,6 +160,9 @@ class ProjectBriefValidator:
         # Validate requirements section
         self._validate_requirements_section(content, result)
 
+        # Validate success criteria section
+        self._validate_success_criteria_section(content, result)
+
         # Check for common issues
         self._check_common_issues(content, result)
 
@@ -230,7 +234,7 @@ class ProjectBriefValidator:
         )
 
         if not overview_match:
-            result.add_error("Could not parse Project Overview section")
+            result.add_error("Could not parse Project Overview/Overview section")
             return
 
         overview_content = overview_match.group(1)
@@ -277,7 +281,7 @@ class ProjectBriefValidator:
         )
 
         if not requirements_match:
-            result.add_error("Could not parse Core Requirements section")
+            result.add_error("Could not parse Core Requirements/Features section")
             return
 
         requirements_content = requirements_match.group(1)
@@ -311,6 +315,47 @@ class ProjectBriefValidator:
         if functional_reqs < 3:
             result.add_warning(
                 f"Only {functional_reqs} requirements found. Consider adding more specific requirements."
+            )
+
+    def _validate_success_criteria_section(self, content: str, result: ValidationResult):
+        """Validate Success Criteria section"""
+        # Try different variations
+        success_criteria_match = None
+        for section_name in ["Success Criteria", "Acceptance Criteria", "Definition of Done"]:
+            success_criteria_match = re.search(
+                r'##\s+[✅]?\s*' + re.escape(section_name) + r'\s*\n(.*?)(?=\n##|\Z)',
+                content,
+                re.DOTALL | re.IGNORECASE
+            )
+            if success_criteria_match:
+                break
+
+        if not success_criteria_match:
+            result.add_error("Could not parse Success Criteria section")
+            return
+
+        success_criteria_content = success_criteria_match.group(1)
+
+        # Check minimum length
+        MIN_SUCCESS_CRITERIA_LENGTH = 50
+        if len(success_criteria_content.strip()) < MIN_SUCCESS_CRITERIA_LENGTH:
+            result.add_error(
+                f"Success Criteria section is too short ({len(success_criteria_content.strip())} chars). "
+                f"Minimum recommended: {MIN_SUCCESS_CRITERIA_LENGTH} characters"
+            )
+
+        # Count criteria items (numbered or bulleted lists)
+        criteria_items = len(re.findall(r'^\s*[\d\-\*]+\.?\s+', success_criteria_content, re.MULTILINE))
+
+        if criteria_items == 0:
+            result.add_warning(
+                "Success Criteria section has no measurable criteria items. "
+                "Consider adding specific, measurable success metrics."
+            )
+        elif criteria_items < 3:
+            result.add_warning(
+                f"Only {criteria_items} success criteria found. "
+                "Consider adding more specific and measurable criteria."
             )
 
     def _check_common_issues(self, content: str, result: ValidationResult):
