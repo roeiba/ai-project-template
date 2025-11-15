@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from fastapi import HTTPException, status
-from .db_models import User, Subscription, UsageMetric, SubscriptionTier, ConversionEvent
+from db_models import User, Subscription, UsageMetric, SubscriptionTier, ConversionEvent
 
 
 class UsageMeteringService:

@@ -34,10 +34,12 @@ from models import (
     ProjectListResponse,
     ProjectStatus,
     ProjectProgress,
+    TaskStatusResponse,
     OAuthExchangeRequest,
     OAuthExchangeResponse
 )
 from seed_planter import SeedPlanter
+from task_storage import task_storage
 
 
 # WebSocket connection manager
@@ -78,10 +80,16 @@ async def lifespan(app: FastAPI):
     logger.info("📊 Initializing database...")
     init_db()
     logger.info("✅ Database initialized")
+    
+    # Connect to Redis
+    logger.info("🔴 Connecting to Redis...")
+    await task_storage.connect()
+    logger.info("✅ Redis connected")
 
     yield
     # Shutdown
     logger.info("👋 Seed Planter API shutting down...")
+    await task_storage.disconnect()
 
 
 app = FastAPI(
@@ -203,6 +211,7 @@ async def plant_seed(
     autonomously. Creates GitHub org, forks SeedGPT template, customizes with AI,
     sets up GCP, and deploys.
 
+    Returns a task_id that can be used to poll for progress.
     Usage is metered and counts against your monthly quota.
     """
 
@@ -216,9 +225,9 @@ async def plant_seed(
         metering_service = UsageMeteringService(db)
         metering_service.enforce_quota(current_user, operation_count=1)
 
-        # Generate project ID upfront
+        # Generate task ID
         import uuid
-        project_id = str(uuid.uuid4())
+        task_id = str(uuid.uuid4())
 
         # Increment usage counters
         metering_service.increment_usage(
@@ -227,32 +236,45 @@ async def plant_seed(
             projects=1,
             api_calls=1
         )
+        
+        # Create task in Redis
+        await task_storage.create_task(task_id, {
+            "project_name": request.project_name,
+            "project_description": request.project_description,
+            "user_email": request.user_email or current_user.email,
+            "mode": request.mode.value,
+            "message": "Initializing project creation...",
+            "progress_percent": 0
+        })
 
-        # Create progress callback
+        # Create progress callback that updates Redis
         async def progress_callback(progress: ProjectProgress):
-            await manager.send_progress(progress)
+            await task_storage.update_progress(task_id, progress)
 
         # Start project planting in background
-        asyncio.create_task(
-            seed_planter.plant_seed(
-                request.project_name,
-                request.project_description,
-                request.mode,
-                request.user_email or current_user.email,
-                progress_callback
-            )
-        )
+        async def plant_task():
+            try:
+                result = await seed_planter.plant_seed(
+                    request.project_name,
+                    request.project_description,
+                    request.mode,
+                    request.user_email or current_user.email,
+                    progress_callback
+                )
+                await task_storage.complete_task(task_id, result)
+            except Exception as e:
+                logger.error(f"Task {task_id} failed: {str(e)}")
+                await task_storage.fail_task(task_id, str(e))
+        
+        asyncio.create_task(plant_task())
 
-        # Return immediate response with correct WebSocket URL
-        ws_protocol = "wss" if req.url.scheme == "https" else "ws"
-        ws_host = req.url.netloc  # includes port if present
-
+        # Return immediate response with task ID
         response = PlantSeedResponse(
-            project_id=project_id,
+            task_id=task_id,
             status=ProjectStatus.INITIALIZING,
             created_at=datetime.utcnow(),
-            websocket_url=f"{ws_protocol}://{ws_host}/api/v1/projects/{project_id}/ws",
-            estimated_completion_time=120  # ~2 minutes
+            estimated_completion_time=120,  # ~2 minutes
+            message="Project creation started. Use task_id to poll for status."
         )
 
         return response
@@ -262,6 +284,53 @@ async def plant_seed(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to plant seed: {str(e)}")
+
+
+@app.get("/api/v1/tasks/{task_id}", response_model=TaskStatusResponse)
+async def get_task_status(task_id: str):
+    """
+    Get the status of a project creation task
+    
+    Poll this endpoint to check the progress of your project creation.
+    The task will include progress updates and final results when completed.
+    """
+    
+    logger.debug(f"📊 Task status request for: {task_id}")
+    
+    # Get task data from Redis
+    task_data = await task_storage.get_task(task_id)
+    
+    if not task_data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Get latest progress
+    progress_data = await task_storage.get_progress(task_id)
+    
+    # Merge task and progress data
+    if progress_data:
+        task_data.update(progress_data)
+    
+    # Convert status string to enum
+    status = ProjectStatus(task_data.get("status", "initializing"))
+    
+    response = TaskStatusResponse(
+        task_id=task_id,
+        status=status,
+        message=task_data.get("message", "Processing..."),
+        progress_percent=task_data.get("progress_percent", 0),
+        project_id=task_data.get("project_id"),
+        project_name=task_data.get("project_name"),
+        org_url=task_data.get("org_url"),
+        repo_url=task_data.get("repo_url"),
+        deployment_url=task_data.get("deployment_url"),
+        gcp_project_id=task_data.get("gcp_project_id"),
+        error_message=task_data.get("error_message"),
+        created_at=task_data.get("created_at"),
+        updated_at=task_data.get("updated_at"),
+        completed_at=task_data.get("completed_at")
+    )
+    
+    return response
 
 
 @app.get("/api/v1/projects/{project_id}", response_model=ProjectDetails)

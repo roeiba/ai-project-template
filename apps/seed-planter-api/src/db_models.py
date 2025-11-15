@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import Enum as PyEnum
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum, Float, Boolean, JSON
 from sqlalchemy.orm import relationship
-from .database import Base
+from database import Base
 
 
 class SubscriptionTier(PyEnum):

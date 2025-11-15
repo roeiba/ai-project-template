@@ -3,12 +3,12 @@ from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, HttpUrl
-from .database import get_db
-from .db_models import User, SubscriptionTier
-from .auth import get_current_active_user
-from .billing_service import BillingService
-from .usage_metering import UsageMeteringService
-from .config import settings
+from database import get_db
+from db_models import User, SubscriptionTier
+from auth import get_current_active_user
+from billing_service import BillingService
+from usage_metering import UsageMeteringService
+from config import config as settings
 import stripe
 
 router = APIRouter(prefix="/api/v1/billing", tags=["billing"])
