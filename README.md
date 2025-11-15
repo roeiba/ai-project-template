@@ -32,15 +32,33 @@ Browse real projects built with SeedGPT. See what others are building and get in
 
 The result? Your project grows while you sleep.
 
-## Works with any tech
+## What can you build?
 
-SeedGPT supports whatever you want to build:
-- **Backend:** Node.js, Python, Go, Java, etc.
-- **Frontend:** React, Vue, Angular, etc.
-- **Mobile:** React Native, Flutter, etc.
-- **Databases:** PostgreSQL, MongoDB, etc.
+SeedGPT isn't just for apps and businesses. Build anything that can be automated:
 
-Just mention it in `PROJECT_BRIEF.md`.
+### 🚀 Applications & Businesses
+- **Backend APIs:** Node.js, Python, Go, Java, etc.
+- **Frontend Apps:** React, Vue, Angular, etc.
+- **Mobile Apps:** React Native, Flutter, etc.
+- **Full-stack Products:** E-commerce, SaaS, marketplaces
+
+### ⚙️ Workflows & Automation
+- **Data pipelines:** ETL processes, data transformation
+- **Task automation:** Scheduled jobs, batch processing
+- **Integration workflows:** Connect APIs, sync systems
+- **CI/CD pipelines:** Build, test, deploy automation
+- **Monitoring & alerts:** Health checks, notifications
+- **Report generation:** Automated analytics, dashboards
+
+### 🔧 Developer Tools & Scripts
+- **CLI tools:** Command-line utilities
+- **Build systems:** Custom tooling, generators
+- **Testing frameworks:** Automated test suites
+- **DevOps scripts:** Infrastructure automation
+
+**Any tech stack. Any automation. Any scale.**
+
+Just describe it in `PROJECT_BRIEF.md` and watch it grow.
 
 ## How to start 
 
@@ -58,6 +76,8 @@ The web interface will:
 **2. Tell it what to build**
 
 Edit `PROJECT_BRIEF.md` with your idea:
+
+**Example 1: Build an app**
 ```markdown
 # My Project
 
@@ -66,6 +86,17 @@ I want to build an online store with:
 - Product catalog
 - Shopping cart
 - Payment processing
+```
+
+**Example 2: Build a workflow**
+```markdown
+# My Automation
+
+I want to build a data pipeline that:
+- Fetches data from multiple APIs daily
+- Transforms and validates the data
+- Stores results in a database
+- Sends email reports with insights
 ```
 
 **3. Add your API key**

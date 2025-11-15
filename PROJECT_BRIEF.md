@@ -8,15 +8,21 @@
 An autonomous project that self-evolves using AI. SeedGPT independently drives development, manages operations, and scales sustainably, ensuring continuous growth and profitability.
 
 **Problem Statement**:
-People want solutions without hassle. Most desire a ready app, product, or business to meet their needs, while a few prefer to build it themselves.
+People want solutions without hassle. Most desire a ready app, product, business, or automated workflow to meet their needs, while a few prefer to build it themselves.
 
 **Target Users**:
-Anyone seeking effortless solutions through technology.
+Anyone seeking effortless solutions through technology—from entrepreneurs building businesses to developers creating automated workflows and processes.
 
 **Proposed Solution**:
-SeedGPT employs AI agents to autonomously generate tasks, write code, submit pull requests, and maintain quality. It oversees all business functions—deployment, analytics, marketing, and sales—via a self-sustaining task cycle. This includes creating marketing content, creatives, social media posts, blogs, games, and other relevant materials customized for each business.
+SeedGPT employs AI agents to autonomously generate tasks, write code, submit pull requests, and maintain quality. It can build and manage various types of projects:
 
-Once mature, SeedGPT acts as a foundational seed for any venture, adaptable to diverse projects.
+- **Applications & Businesses:** Oversees deployment, analytics, marketing, and sales via a self-sustaining task cycle. Creates marketing content, creatives, social media posts, blogs, games, and other relevant materials.
+
+- **Workflows & Automation:** Develops data pipelines, scheduled tasks, API integrations, CI/CD pipelines, monitoring systems, and any automated process that runs in the background.
+
+- **Developer Tools:** Creates CLI tools, build systems, testing frameworks, and DevOps scripts.
+
+Once mature, SeedGPT acts as a foundational seed for any venture or automation, adaptable to diverse projects and use cases.
 
 Start with a B2C and B2B platform allowing users to initiate and manage projects. Users input a project idea, and SeedGPT establishes the framework, nurturing it to grow independently.
 
