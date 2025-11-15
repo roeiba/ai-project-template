@@ -457,17 +457,25 @@
             <p>Choose how you'd like to get started with SeedGPT:</p>
             
             <div class="modal-options">
-                <div class="option-card" onclick="startWithFrontend()">
+                <div class="option-card" onclick="startWithSaaS()">
                     <h3>
-                        ✨ Guided Setup
-                        <span class="badge">RECOMMENDED</span>
+                        🌟 Fully Managed SaaS Solution
+                        <span class="badge">RECOMMENDED FOR COMPANIES</span>
                     </h3>
-                    <p>Use our interactive web app to authenticate with GitHub and automatically fork the project. Perfect for beginners!</p>
+                    <p>Enterprise-ready solution with zero setup. Perfect for companies and startups who want to get started immediately without infrastructure management.</p>
+                </div>
+                
+                <div class="option-card" onclick="startWithFrontend()">
+                    <h3>✨ Guided Setup</h3>
+                    <p>Authenticate with GitHub through our web app and automatically fork the project on your behalf. Streamlined setup with automated configuration.</p>
                 </div>
                 
                 <div class="option-card" onclick="forkDirectly()">
-                    <h3>⚡ Quick Fork</h3>
-                    <p>Directly fork the repository on GitHub. You'll need to set up GitHub Actions and secrets manually.</p>
+                    <h3>
+                        ⚡ Quick Fork
+                        <span class="badge">RECOMMENDED FOR USERS</span>
+                    </h3>
+                    <p>Directly fork the repository on GitHub for full control. You'll manage GitHub Actions and secrets manually.</p>
                 </div>
             </div>
         </div>
@@ -491,9 +499,14 @@
             document.getElementById('startModal').classList.remove('active');
         }
 
-        function startWithFrontend() {
-            // Redirect to the frontend app which will handle GitHub OAuth
+        function startWithSaaS() {
+            // Redirect to the SaaS frontend solution
             window.location.href = FRONTEND_APP_URL;
+        }
+
+        function startWithFrontend() {
+            // Redirect to the frontend app which will handle GitHub OAuth and fork
+            window.location.href = FRONTEND_APP_URL + '/guided-setup';
         }
 
         function forkDirectly() {
