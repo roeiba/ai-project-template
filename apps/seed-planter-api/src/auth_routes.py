@@ -2,17 +2,17 @@
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from .database import get_db
-from .db_models import User, SubscriptionTier
-from .auth import (
+from database import get_db
+from db_models import User, SubscriptionTier
+from auth import (
     get_password_hash,
     authenticate_user,
     create_access_token,
     get_current_active_user
 )
-from .auth_models import UserRegister, UserLogin, Token, UserResponse
-from .billing_service import BillingService
-from .config import settings
+from auth_models import UserRegister, UserLogin, Token, UserResponse
+from billing_service import BillingService
+from config import config as settings
 
 router = APIRouter(prefix="/api/v1/auth", tags=["authentication"])
 

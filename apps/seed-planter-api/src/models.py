@@ -42,11 +42,35 @@ class PlantSeedRequest(BaseModel):
 
 class PlantSeedResponse(BaseModel):
     """Response after planting seed"""
-    project_id: str = Field(..., description="Unique project identifier")
+    task_id: str = Field(..., description="Task ID for tracking progress")
     status: ProjectStatus = Field(..., description="Current project status")
     created_at: datetime = Field(..., description="Creation timestamp")
-    websocket_url: str = Field(..., description="WebSocket URL for real-time updates")
     estimated_completion_time: int = Field(..., description="Estimated time in seconds")
+    message: str = Field(default="Project creation started", description="Status message")
+
+
+class TaskStatusResponse(BaseModel):
+    """Response for task status polling"""
+    task_id: str
+    status: ProjectStatus
+    message: str = Field(default="Processing...")
+    progress_percent: int = Field(ge=0, le=100, default=0)
+    
+    # Optional result fields (populated when completed)
+    project_id: Optional[str] = None
+    project_name: Optional[str] = None
+    org_url: Optional[str] = None
+    repo_url: Optional[str] = None
+    deployment_url: Optional[str] = None
+    gcp_project_id: Optional[str] = None
+    
+    # Error field (populated when failed)
+    error_message: Optional[str] = None
+    
+    # Timestamps
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    completed_at: Optional[str] = None
 
 
 class ProjectProgress(BaseModel):

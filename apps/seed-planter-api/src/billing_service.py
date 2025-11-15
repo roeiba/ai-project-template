@@ -4,9 +4,9 @@ from typing import Optional, Dict, Any
 import stripe
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
-from .db_models import User, Subscription, Payment, SubscriptionTier, ConversionEvent
-from .usage_metering import UsageMeteringService
-from .config import settings
+from db_models import User, Subscription, Payment, SubscriptionTier, ConversionEvent
+from usage_metering import UsageMeteringService
+from config import config as settings
 
 
 class BillingService:
