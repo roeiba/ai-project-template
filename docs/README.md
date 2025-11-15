@@ -29,6 +29,9 @@ Welcome to SeedGPT - the world's first fully autonomous, self-growing software p
 - **[CONTRIBUTING_GUIDE.md](CONTRIBUTING_GUIDE.md)** - How to contribute
 - **[SECURITY_AUDIT.md](SECURITY_AUDIT.md)** - Security best practices
 
+### Thought Leadership
+- **[AI Agent Engineering Blog Series](blog/)** - 4-part series on autonomous AI development
+
 ## 🤖 How SeedGPT Works
 
 SeedGPT has 3 autonomous agents that work 24/7:
@@ -60,6 +63,7 @@ SeedGPT has 3 autonomous agents that work 24/7:
 | **Contribute** | [CONTRIBUTING_GUIDE.md](CONTRIBUTING_GUIDE.md) |
 | **Check security** | [SECURITY_AUDIT.md](SECURITY_AUDIT.md) |
 | **Optimize GitHub** | [github-optimization.md](github-optimization.md) |
+| **Read blog series** | [AI Agent Engineering](blog/) |
 
 ## 💡 Key Concepts
 
@@ -102,7 +106,13 @@ docs/
 ├── CONTRIBUTING_GUIDE.md       # Contribution guide
 ├── SECURITY_AUDIT.md           # Security guide
 ├── github-optimization.md      # GitHub optimization
-└── launch-checklist.md         # Launch checklist
+├── launch-checklist.md         # Launch checklist
+└── blog/                        # AI Agent Engineering blog series
+    ├── README.md                # Series overview & cross-posting guide
+    ├── 01-agent-architectures-autonomous-development.md
+    ├── 02-self-improving-systems.md
+    ├── 03-cicd-automation-ai-agents.md
+    └── 04-future-autonomous-coding.md
 ```
 
 ### Updating the Showcase Site
@@ -134,4 +144,4 @@ Think of it as **hiring an AI development team that never sleeps.**
 
 **Ready to get started?** → [SETUP_GUIDE.md](SETUP_GUIDE.md)
 
-*Last Updated: November 13, 2025*
+*Last Updated: November 15, 2025*
